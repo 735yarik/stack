@@ -6,7 +6,7 @@
 typedef int stack_elem_t;
 
 const size_t INIT_CAP = 2;
-const stack_elem_t STACK_DEFAULT_VALUE = 1;
+const unsigned long long STACK_DEFAULT_VALUE = 0xDEDEDEDE;
 
 enum modes
 {
@@ -20,7 +20,7 @@ struct StackStruct
 {
 
     stack_elem_t *stack = NULL;
-    size_t elems_num = 0;
+    size_t position = 0;
     size_t cap = 0;
     FILE *file = NULL;
 
@@ -34,23 +34,29 @@ void stack_push(StackStruct *stack_info, stack_elem_t new_elem);
 
 stack_elem_t stack_pop(StackStruct *stack_info);
 
-void stack_print(stack_elem_t *stack, size_t elems_num);
+void stack_fprintf(StackStruct *stack_info);
 
-void stack_realloc(StackStruct *stack_info, int mode);
+void stack_printf(StackStruct *stack_info);
 
-void dump(StackStruct *stack_info);
+void stack_resize(StackStruct *stack_info, int mode);
 
-int verification(StackStruct *stack_info);
+void stack_realloc(StackStruct *stack_info);
+
+void dump(StackStruct *stack_info, size_t error_code);
+
+void verification(StackStruct *stack_info, size_t *error_code);
+
+void my_assert(StackStruct *stack_info);
 
 int main()
 {
 
     StackStruct stack_info = {};
 
-    Ctor(&stack_info, INIT_CAP);
-
     int mode = 0;
     stack_elem_t new_elem = 0;
+
+    Ctor(&stack_info, INIT_CAP);
 
     while(mode != -1)
     {
@@ -60,17 +66,17 @@ int main()
 
         if (mode == 1)          // 1 - push    2 - pop
         {
+            printf("pushin ");
             scanf("%d", &new_elem);
             stack_push(&stack_info, new_elem);
-            stack_print(stack_info.stack, stack_info.elems_num);
+            stack_fprintf(&stack_info);
         }
 
         if (mode == 2)
         {
-            stack_pop(&stack_info);
-            stack_print(stack_info.stack, stack_info.elems_num);
+            printf("poppin %d\n", stack_pop(&stack_info));
         }
-        dump(&stack_info);
+
     }
     Dtor(&stack_info);
 }
@@ -78,124 +84,188 @@ int main()
 void Ctor(StackStruct *stack_info, size_t init_cap)
 {
 
+    assert(stack_info != NULL);
+    assert(init_cap != 0);
+
     stack_info->cap = init_cap;
     stack_info->stack = (stack_elem_t *) calloc(init_cap, sizeof(stack_elem_t));
     assert(stack_info->stack != NULL);
 
-    stack_info->elems_num = 0;
+    stack_info->position = 0;
 
-    memset(stack_info->stack, STACK_DEFAULT_VALUE, init_cap * sizeof(stack_elem_t)); //memset????
-
-    stack_print(stack_info->stack, init_cap); //
+    memset(stack_info->stack, STACK_DEFAULT_VALUE, init_cap * sizeof(stack_elem_t));
 
 }
 
 void Dtor(StackStruct *stack_info)
 {
 
+    my_assert(stack_info);
+
     free(stack_info->stack);
     stack_info->stack = NULL;
     stack_info->cap = 0;
-    stack_info->elems_num = 0;
+    stack_info->position = 0;
 
 }
 
 void stack_push(StackStruct *stack_info, stack_elem_t new_elem)
 {
 
-    if (stack_info->elems_num == stack_info->cap)
+    my_assert(stack_info);
+
+    if (stack_info->position == stack_info->cap)
     {
-        stack_realloc(stack_info, INCREASE);
+        stack_resize(stack_info, INCREASE);
     }
 
-    *(stack_info->stack + stack_info->elems_num) = new_elem;
-    printf("pushin ");
-    stack_info->elems_num++;
+    *(stack_info->stack + stack_info->position) = new_elem;
+    stack_info->position++;
+
+    my_assert(stack_info);
 
 }
 
 stack_elem_t stack_pop(StackStruct *stack_info)
 {
 
-    if (stack_info->elems_num == stack_info->cap / 2 - 3)
+    my_assert(stack_info);
+
+    if (stack_info->position == stack_info->cap / 2 - 3)
     {
-        stack_realloc(stack_info, DECREASE);
+        stack_resize(stack_info, DECREASE);
     }
 
-    printf("poppin %d\n", stack_info->stack[stack_info->elems_num-1]);
-    stack_elem_t popped_elem = stack_info->stack[stack_info->elems_num-1];
-    stack_info->stack[stack_info->elems_num] = STACK_DEFAULT_VALUE;
-    stack_info->elems_num--;
+    stack_elem_t popped_elem = stack_info->stack[stack_info->position-1];
+    stack_info->stack[stack_info->position] = STACK_DEFAULT_VALUE;
+    stack_info->position--;
+
+    my_assert(stack_info);
 
     return popped_elem;
 
 }
 
-void stack_print(stack_elem_t *stack, size_t elems_num)
+void stack_fprintf(StackStruct *stack_info)
 {
 
-    for(size_t c = 0; c < elems_num; c++)
+    my_assert(stack_info);
+
+    for(size_t c = 0; c < stack_info->position; c++)
     {
-        printf("%d ", stack[c]);
+        fprintf(stack_info->file, "%d ", stack_info->stack[c]);
+    }
+
+    fprintf(stack_info->file, "\n");
+
+    my_assert(stack_info);
+
+}
+
+void stack_printf(StackStruct *stack_info)
+{
+
+    my_assert(stack_info);
+
+    for(size_t c = 0; c < stack_info->position; c++)
+    {
+        printf("%d ", stack_info->stack[c]);
     }
 
     printf("\n");
 
+    my_assert(stack_info);
+
 }
 
-
-void stack_realloc(StackStruct *stack_info, int mode)
+void stack_resize(StackStruct *stack_info, int mode)
 {
 
-    stack_elem_t *new_stack = NULL;
+    my_assert(stack_info);
+    assert(mode == INCREASE || mode == DECREASE);
 
-    switch(mode)
+    if (mode == INCREASE)
     {
-        case INCREASE:
-
-            stack_info->cap *= 2;
-            new_stack = (stack_elem_t *) realloc(stack_info->stack, stack_info->cap * sizeof(stack_elem_t));
-            assert(new_stack != NULL);
-
-            stack_info->stack = new_stack;
-            break;
-
-        case DECREASE:
-
-            stack_info->cap /= 2;
-            new_stack = (stack_elem_t *) realloc(stack_info->stack, stack_info->cap * sizeof(stack_elem_t));
-            assert(new_stack != NULL);
-
-            stack_info->stack = new_stack;
-            break;
+        stack_info->cap *= 2;
+        stack_realloc(stack_info);
+        memset(stack_info->stack + stack_info->cap / 2, STACK_DEFAULT_VALUE, stack_info->cap * sizeof(stack_elem_t) / 2);
+    }
+    else
+    {
+        stack_info->cap /= 2;
+        stack_realloc(stack_info);
     }
 
+    my_assert(stack_info);
+
 }
 
-void dump(StackStruct *stack_info)
+void stack_realloc(StackStruct *stack_info)
 {
 
-    printf("\ndump:\nelems_num = %d\ncapacity = %d\nstack ---> ", stack_info->elems_num, stack_info->cap);
-    stack_print(stack_info->stack, stack_info->elems_num);
+    my_assert(stack_info);
+
+    stack_elem_t *new_stack = (stack_elem_t *) realloc(stack_info->stack, stack_info->cap * sizeof(stack_elem_t));
+    assert(new_stack != NULL);
+
+    stack_info->stack = new_stack;
+
+    my_assert(stack_info);
+
+}
+
+void dump(StackStruct *stack_info, size_t error_code)
+{
+
+    stack_info->file = fopen("log.txt", "a");
+    if (stack_info->file == NULL)
+    {
+        printf("\nfopen error");
+        printf("\ndump: %s  %s\n", __TIME__, __DATE__);
+        printf("error code = %d\nstack pointer = %d\nposition = %d\ncapacity = %d\nstack ---> ", error_code, stack_info->position, stack_info->cap);
+        stack_printf(stack_info);
+    }
+    else
+    {
+        fprintf(stack_info->file, "\ndump: %s  %s\n", __TIME__, __DATE__);
+        fprintf(stack_info->file, "error code = %d\nposition = %d\ncapacity = %d\nstack ---> ", error_code, stack_info->position, stack_info->cap);
+        stack_fprintf(stack_info);
+        assert(fclose(stack_info->file) == 0);
+    }
     
 }
 
-int verification(StackStruct *stack_info)
+void verification(StackStruct *stack_info, size_t *error_code)
 {
 
-    if (stack_info->cap < stack_info->elems_num)
+    if (stack_info == NULL)
     {
-        return 0;
+        *error_code += 100;
     }
 
     if (stack_info->cap == 0)
     {
-        return 1;
+        *error_code += 10;
     }
 
     if (stack_info->stack == 0)
     {
-        return 2;
+        *error_code += 1;
+    }
+
+}
+
+void my_assert(StackStruct *stack_info)
+{
+
+    size_t error_code = 0;
+
+    verification(stack_info, &error_code);
+
+    if (error_code != 0)
+    {
+        dump(stack_info, error_code);
+        exit(0);
     }
 
 }
