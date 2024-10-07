@@ -7,8 +7,8 @@ typedef int stack_elem_t;
 
 const size_t INIT_CAP = 2;
 const unsigned long long STACK_DEFAULT_VALUE = 0xDEDEDEDE;
-const int L_CANARY = 111; //0xDEADF00D;
-const int R_CANARY = 222; //0xBADC0FFE;
+const int L_CANARY = 0xDEADF00D;
+const int R_CANARY = 0xBADC0FFE;
 
 enum modes
 {
@@ -21,7 +21,7 @@ enum modes
 struct StackStruct
 {
 
-    const int L_CANARY = 111; //0xDEADF00D;
+    const int L_CANARY = 0xDEADF00D;
 
     stack_elem_t *stack = NULL;
     size_t position = 0;
@@ -29,7 +29,7 @@ struct StackStruct
     FILE *file = NULL;
     unsigned long hash = 5381;
 
-    const int R_CANARY = 222; //0xBADC0FFE;
+    const int R_CANARY = 0xBADC0FFE;
 
 };
 
@@ -73,33 +73,42 @@ int main()
         printf("\nmode: ");
         scanf("%d", &mode);
 
-        if (mode == 1)          // 1 - push    2 - pop    3 dump
+        switch(mode)          // 1 - push    2 - pop    3 - dump
         {
-            printf("pushin ");
-            scanf("%d", &new_elem);
-            stack_push(&stack_info, new_elem);
-            stack_fprintf(&stack_info);
+            case(1):
+            {
+                printf("pushin ");
+                scanf("%d", &new_elem);
+                stack_push(&stack_info, new_elem);
+                stack_fprintf(&stack_info);
+
+                break;
+            }
+
+            case(2):
+            {
+                if (stack_info.position != 0)
+                {
+                printf("poppin %d\n", stack_pop(&stack_info));
+                }
+                else
+                {
+                    printf("stack has 0 elements\n");
+                }
+
+                break;
+            }
+
+            case(3):
+            {
+                dump(&stack_info, 0);
+            }
         }
 
-        if (mode == 2)
-        {
-            if (stack_info.position != 0)
-            {
-            printf("poppin %d\n", stack_pop(&stack_info));
-            }
-            else
-            {
-                printf("stack has 0 elements\n");
-            }
-        }
         stack_printf(&stack_info);
-
-        if (mode == 3)
-        {
-            dump(&stack_info, 666);
-        }
     }
     Dtor(&stack_info);
+
 }
 
 void Ctor(StackStruct *stack_info, size_t init_cap)
@@ -200,7 +209,7 @@ void stack_printf(StackStruct *stack_info)
 
     my_assert(stack_info);
 
-    for(size_t c = 0; c <= stack_info->cap; c++)
+    for(size_t c = 0; c < stack_info->position; c++)
     {
         printf("%d ", stack_info->stack[c]);
     }
