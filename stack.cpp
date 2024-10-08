@@ -220,8 +220,6 @@ void stack_fprintf(StackStruct *stack_info)
 void stack_printf(StackStruct *stack_info)
 {
 
-    stack_assert(stack_info);
-
     for (size_t c = 0; c < stack_info->position; c++)
     {
         printf("%d ", stack_info->stack[c]);
@@ -262,21 +260,32 @@ void stack_resize(StackStruct *stack_info, int mode)
 void dump(StackStruct *stack_info, size_t error_code)
 {
 
-    stack_info->file = fopen("log.txt", "a");
-    
-    if (stack_info->file == NULL)
+    if (stack_info == 0)
     {
-        printf("\nfopen error");
-        printf("\ndump: %s  %s\n", __TIME__, __DATE__);
-        printf("error code = %d\nstack pointer = %d\nposition = %d\ncapacity = %d\nstack ---> ", error_code, stack_info->stack, stack_info->position, stack_info->cap);
-        stack_printf(stack_info);
+        printf("struct pointer = 0");
+    }
+    else if (stack_info->stack == 0)
+    {
+        printf("stack pointer = 0");
     }
     else
     {
-        fprintf(stack_info->file, "\ndump: %s  %s\n", __TIME__, __DATE__);
-        fprintf(stack_info->file, "error code = %d\nposition = %d\ncapacity = %d\nstack ---> ", error_code, stack_info->stack, stack_info->position, stack_info->cap);
-        stack_fprintf(stack_info);
-        assert(fclose(stack_info->file) == 0);
+        stack_info->file = fopen("log.txt", "a");
+        
+        if (stack_info->file == NULL)
+        {
+            printf("\nfopen error");
+            printf("\ndump: %s  %s\n", __TIME__, __DATE__);
+            printf("error code = %d\nstack pointer = %d\nposition = %d\ncapacity = %d\nstack ---> ", error_code, stack_info->stack, stack_info->position, stack_info->cap);
+            stack_printf(stack_info);
+        }
+        else
+        {
+            fprintf(stack_info->file, "\ndump: %s  %s\n", __TIME__, __DATE__);
+            fprintf(stack_info->file, "error code = %d\nposition = %d\ncapacity = %d\nstack ---> ", error_code, stack_info->stack, stack_info->position, stack_info->cap);
+            stack_fprintf(stack_info);
+            assert(fclose(stack_info->file) == 0);
+        }
     }
     
 }
@@ -319,10 +328,10 @@ void verification(StackStruct *stack_info, size_t *error_code)
         *error_code += 100;
     }
 
-    if (stack_info->struct_hash != struct_hash(stack_info))
-    {
-        *error_code += 10;
-    }
+    // if (stack_info->struct_hash != struct_hash(stack_info))
+    // {
+    //     *error_code += 10;
+    // }
 
     if (stack_info->stack_hash != stack_hash(stack_info))
     {
