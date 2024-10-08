@@ -7,8 +7,9 @@ typedef int stack_elem_t;
 
 const size_t INIT_CAP = 2;
 const unsigned long long STACK_DEFAULT_VALUE = 0xDEDEDEDE;
-const int L_CANARY = 0xDEADF00D;
-const int R_CANARY = 0xBADC0FFE;
+const int L_canary = 0xDEADF00D;
+const int R_canary = 0xBADC0FFE;
+const int DJB2 = 5381;
 
 enum modes
 {
@@ -21,15 +22,17 @@ enum modes
 struct StackStruct
 {
 
-    const int L_CANARY = 0xDEADF00D;
+    int L_CANARY = 0xDEADF00D;
+
+    FILE *file = NULL;
 
     stack_elem_t *stack = NULL;
     size_t position = 0;
     size_t cap = 0;
-    FILE *file = NULL;
-    unsigned long hash = 5381;
+    unsigned long stack_hash = DJB2;
+    unsigned long struct_hash = DJB2;
 
-    const int R_CANARY = 0xBADC0FFE;
+    int R_CANARY = 0xBADC0FFE;
 
 };
 
@@ -47,15 +50,15 @@ void stack_printf(StackStruct *stack_info);
 
 void stack_resize(StackStruct *stack_info, int mode);
 
-void stack_realloc(StackStruct *stack_info);
-
 void dump(StackStruct *stack_info, size_t error_code);
 
 void verification(StackStruct *stack_info, size_t *error_code);
 
-unsigned long hash_djb2(StackStruct *stack_info);
+unsigned long stack_hash(StackStruct *stack_info);
 
-void my_assert(StackStruct *stack_info);
+unsigned long struct_hash(StackStruct *stack_info);
+
+void stack_assert(StackStruct *stack_info);
 
 int main()
 {
@@ -67,13 +70,15 @@ int main()
 
     Ctor(&stack_info, INIT_CAP);
 
+    printf("choose mode: 1 - push    2 - pop    3 - dump");
+
     while(mode != -1)
     {
 
         printf("\nmode: ");
         scanf("%d", &mode);
 
-        switch(mode)          // 1 - push    2 - pop    3 - dump
+        switch(mode)          // 1 - push    2 - pop    3 - dump    -1 - end program
         {
             case(1):
             {
@@ -102,9 +107,17 @@ int main()
             case(3):
             {
                 dump(&stack_info, 0);
+
+                break;
+            }
+
+            default:
+            {
+                printf("wrong input\n");
             }
         }
 
+        printf("stack ---> ");
         stack_printf(&stack_info);
     }
     Dtor(&stack_info);
@@ -119,70 +132,70 @@ void Ctor(StackStruct *stack_info, size_t init_cap)
 
     stack_info->cap = init_cap;
     stack_info->position = 0;
-    stack_info->stack = (stack_elem_t *) calloc(init_cap + 3, sizeof(stack_elem_t));
+    stack_info->stack = (stack_elem_t *) calloc(init_cap + 2, sizeof(stack_elem_t));
     assert(stack_info->stack != NULL);
 
     stack_info->stack++;
 
-    stack_info->stack[-1] = L_CANARY;
-    stack_info->stack[0] = R_CANARY;
-    stack_info->stack[init_cap] = R_CANARY; 
+    stack_info->stack[-1] = L_canary;
+    stack_info->stack[init_cap] = R_canary;
 
-    memset(stack_info->stack + 1, STACK_DEFAULT_VALUE, init_cap * sizeof(stack_elem_t));
+    memset(stack_info->stack + 1, STACK_DEFAULT_VALUE, (init_cap - 1) * sizeof(stack_elem_t));
 
 }
 
 void Dtor(StackStruct *stack_info)
 {
 
-    my_assert(stack_info);
+    stack_assert(stack_info);
 
     free(--stack_info->stack);
     stack_info->stack = NULL;
     stack_info->cap = 0;
     stack_info->position = 0;
+    stack_info->file = NULL;
+    stack_info->stack_hash = 0;
+    stack_info->L_CANARY = 0;
+    stack_info->R_CANARY = 0;
 
 }
 
 void stack_push(StackStruct *stack_info, stack_elem_t new_elem)
 {
 
-    my_assert(stack_info);
+    stack_assert(stack_info);
 
     if (stack_info->position == stack_info->cap)
     {
         stack_resize(stack_info, INCREASE);
     }
 
-    stack_info->stack[stack_info->position + 1] = R_CANARY;
-
     stack_info->stack[stack_info->position] = new_elem;
     stack_info->position++;
 
-    stack_info->hash = hash_djb2(stack_info);
+    stack_info->stack_hash = stack_hash(stack_info);
 
-    my_assert(stack_info);
+    stack_assert(stack_info);
 
 }
 
 stack_elem_t stack_pop(StackStruct *stack_info)
 {
 
-    my_assert(stack_info);
+    stack_assert(stack_info);
 
     if (stack_info->position == stack_info->cap / 2 - 3)
     {
         stack_resize(stack_info, DECREASE);
     }
 
-    stack_elem_t popped_elem = stack_info->stack[stack_info->position-1];
+    stack_elem_t popped_elem = stack_info->stack[stack_info->position - 1];
     stack_info->stack[stack_info->position] = STACK_DEFAULT_VALUE;
-    stack_info->stack[stack_info->position - 1] = R_CANARY;
     stack_info->position--;
 
-    stack_info->hash = hash_djb2(stack_info);
+    stack_info->stack_hash = stack_hash(stack_info);
 
-    my_assert(stack_info);
+    stack_assert(stack_info);
 
     return popped_elem;
 
@@ -191,70 +204,58 @@ stack_elem_t stack_pop(StackStruct *stack_info)
 void stack_fprintf(StackStruct *stack_info)
 {
 
-    my_assert(stack_info);
+    stack_assert(stack_info);
 
-    for(size_t c = 0; c < stack_info->position; c++)
+    for (size_t c = 0; c < stack_info->position; c++)
     {
         fprintf(stack_info->file, "%d ", stack_info->stack[c]);
     }
 
     fprintf(stack_info->file, "\n");
 
-    my_assert(stack_info);
+    stack_assert(stack_info);
 
 }
 
 void stack_printf(StackStruct *stack_info)
 {
 
-    my_assert(stack_info);
+    stack_assert(stack_info);
 
-    for(size_t c = 0; c < stack_info->position; c++)
+    for (size_t c = 0; c < stack_info->position; c++)
     {
         printf("%d ", stack_info->stack[c]);
     }
 
     printf("\n");
 
-    my_assert(stack_info);
+    stack_assert(stack_info);
 
 }
 
 void stack_resize(StackStruct *stack_info, int mode)
 {
 
-    my_assert(stack_info);
+    stack_assert(stack_info);
     assert(mode == INCREASE || mode == DECREASE);
+
+    stack_info->cap = (mode == INCREASE) ? stack_info->cap * 2 : stack_info->cap / 2;
+
+
+    stack_elem_t *new_stack = (stack_elem_t *) realloc(stack_info->stack - 1, (stack_info->cap + 2) * sizeof(stack_elem_t));
+    assert(new_stack != NULL);
+
+    stack_info->stack = new_stack + 1;
+    stack_info->stack[stack_info->cap] = R_canary;
+
 
     if (mode == INCREASE)
     {
-        stack_info->cap *= 2;
-        stack_realloc(stack_info);
-        memset(&stack_info->stack[stack_info->cap / 2 + 1], STACK_DEFAULT_VALUE, (stack_info->cap) * sizeof(stack_elem_t) / 2);
-    }
-    else
-    {
-        stack_info->cap /= 2;
-        stack_realloc(stack_info);
+        memset(&stack_info->stack[stack_info->cap / 2 + 1], STACK_DEFAULT_VALUE, (stack_info->cap - 2) * sizeof(stack_elem_t) / 2);
     }
 
-    my_assert(stack_info);
 
-}
-
-void stack_realloc(StackStruct *stack_info)
-{
-
-    my_assert(stack_info);
-
-    stack_info->stack--;
-    stack_elem_t *new_stack = (stack_elem_t *) realloc(stack_info->stack, (stack_info->cap + 2) * sizeof(stack_elem_t));
-    assert(new_stack != NULL);
-
-    stack_info->stack = new_stack;
-    stack_info->stack++;
-
-    my_assert(stack_info);
+    stack_assert(stack_info);
 
 }
 
@@ -262,6 +263,7 @@ void dump(StackStruct *stack_info, size_t error_code)
 {
 
     stack_info->file = fopen("log.txt", "a");
+    
     if (stack_info->file == NULL)
     {
         printf("\nfopen error");
@@ -282,51 +284,54 @@ void dump(StackStruct *stack_info, size_t error_code)
 void verification(StackStruct *stack_info, size_t *error_code)
 {
 
-    if (stack_info->hash != hash_djb2(stack_info))
-    {
-        *error_code += 10000000;
-        printf("hashes %lu  %lu", stack_info->hash, hash_djb2(stack_info));
-    }
-
-    if (stack_info->stack[-1] != L_CANARY)
-    {
-        *error_code += 1000000;
-    }
-
-    if (stack_info->stack[stack_info->position] != R_CANARY)
-    {
-        printf("R CANARY = %d", stack_info->stack[stack_info->position]);
-        *error_code += 100000;
-    }
-
-    if (stack_info->L_CANARY != L_CANARY)
-    {
-        *error_code += 10000;
-    }
-
-    if (stack_info->R_CANARY != R_CANARY)
-    {
-        *error_code += 1000;
-    }
-
     if (stack_info == NULL)
     {
-        *error_code += 100;
+        *error_code += 100000000;
+    }
+
+    if (stack_info->stack == 0)
+    {
+        *error_code += 10000000;
     }
 
     if (stack_info->cap == 0)
     {
+        *error_code += 1000000;
+    }
+
+    if (stack_info->stack[-1] != L_canary)
+    {
+        *error_code += 100000;
+    }
+
+    if (stack_info->stack[stack_info->cap] != R_canary)
+    {
+        *error_code += 10000;
+    }
+
+    if (stack_info->L_CANARY != L_canary)
+    {
+        *error_code += 1000;
+    }
+
+    if (stack_info->R_CANARY != R_canary)
+    {
+        *error_code += 100;
+    }
+
+    if (stack_info->struct_hash != struct_hash(stack_info))
+    {
         *error_code += 10;
     }
 
-    if (stack_info->stack == 0)
+    if (stack_info->stack_hash != stack_hash(stack_info))
     {
         *error_code += 1;
     }
 
 }
 
-void my_assert(StackStruct *stack_info)
+void stack_assert(StackStruct *stack_info)
 {
 
     size_t error_code = 0;
@@ -341,10 +346,10 @@ void my_assert(StackStruct *stack_info)
 
 }
 
-unsigned long hash_djb2(StackStruct *stack_info)
+unsigned long stack_hash(StackStruct *stack_info)
 {
 
-    unsigned long hash = 5381;
+    unsigned long hash = DJB2;
 
     for (size_t c = 0; c < stack_info->position; c++)
     {
@@ -352,5 +357,18 @@ unsigned long hash_djb2(StackStruct *stack_info)
     }
 
     return hash;
+
+}
+
+unsigned long struct_hash(StackStruct *stack_info)
+{
+    
+    unsigned long hash = DJB2;
+
+    hash = ((hash << 5) + hash) + stack_info->position;
+    hash = ((hash << 5) + hash) + stack_info->cap;
+    hash = ((hash << 5) + hash) + stack_info->stack_hash;
+    hash = ((hash << 5) + hash) + stack_info->L_CANARY;
+    hash = ((hash << 5) + hash) + stack_info->R_CANARY;
 
 }
